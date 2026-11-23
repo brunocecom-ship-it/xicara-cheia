@@ -81,6 +81,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:linear-gradient(#86d2e
 .steps li{margin:5px 0}
 .big{font-size:44px;font-weight:800;color:var(--tang);line-height:1;text-align:center;margin:10px 0}
 .lbl{display:block;font-weight:700;color:var(--cocoa);margin-top:8px}.inp{width:100%;font:600 16px 'Baloo 2',sans-serif;padding:10px 14px;border-radius:14px;border:2px solid var(--line);background:#fff;color:var(--ink);margin:4px 0 6px;min-height:48px;user-select:text;-webkit-user-select:text}.inp:focus{outline:3px solid var(--tang);outline-offset:1px}
+.inp.code{font:500 12px/1.35 ui-monospace,Menlo,monospace;word-break:break-all;resize:none;min-height:110px}
 .pbar{height:14px;background:#f0dcc0;border-radius:9px;overflow:hidden;margin:8px 0}
 .pbar i{display:block;height:100%;background:var(--tang)}
 </style>
@@ -327,7 +328,19 @@ function load(){
  try{const r=localStorage.getItem(SAVE);if(r){const g=JSON.parse(r);if(g&&g.v===1&&Array.isArray(g.objs))return g}}catch(e){}
  return null;
 }
-function save(){S.last=Date.now();try{localStorage.setItem(SAVE,JSON.stringify({...S,objs:S.objs.map(o=>({id:o.id,t:o.t,i:o.i,j:o.j,s:o.s,r:o.r||0}))}))}catch(e){}}
+function snap(){return JSON.stringify({...S,objs:S.objs.map(o=>({id:o.id,t:o.t,i:o.i,j:o.j,s:o.s,r:o.r||0}))})}
+let idbP=null;
+function idb(){if(idbP)return idbP;idbP=new Promise(res=>{try{const r=indexedDB.open('xicara-cheia',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>res(r.result);r.onerror=()=>res(null)}catch(e){res(null)}});return idbP}
+async function idbSet(k,v){const d=await idb();if(!d)return;try{d.transaction('kv','readwrite').objectStore('kv').put(v,k)}catch(e){}}
+async function idbGet(k){const d=await idb();if(!d)return null;return new Promise(res=>{try{const q=d.transaction('kv').objectStore('kv').get(k);q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null)}catch(e){res(null)}})}
+function save(){if(!S)return;S.last=Date.now();const j=snap();try{localStorage.setItem(SAVE,j)}catch(e){}idbSet(SAVE,j);try{const m=localStorage.getItem('xicara-perfis');if(m)idbSet('xicara-perfis',m)}catch(e){}}
+async function restoreIDB(){ // se o navegador apagou o localStorage mas o IndexedDB sobreviveu, recupera
+ for(const k of['xicara-perfis','xicara-cheia-v1','xicara-cheia-v1-p2']){let has=null;try{has=localStorage.getItem(k)}catch(e){}
+  const v=await idbGet(k);if(!v)continue;
+  if(!has){try{localStorage.setItem(k,v)}catch(e){}}
+  else if(k!=='xicara-perfis'){try{const a=JSON.parse(has),b=JSON.parse(v);if((b.last||0)>(a.last||0)+2000)localStorage.setItem(k,v)}catch(e){}}}
+}
+function askPersist(){try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}}
 
 let mode='play';          // play | edit
 let sel=null,placing=null;// edição
@@ -1354,8 +1367,25 @@ function openHelp(){
   <li><b>Cresça:</b> com moedas, compre móveis e decoração na Loja. Decoração dá charme, e charme aumenta o preço que os clientes pagam.</li>
  </ol><p class="sub">Arraste para mover a câmera e use dois dedos para dar zoom. No modo Decorar, toque num móvel para mover ou vender.</p><div class="row">${btn('Entendi',closeSheet,'green wide')}</div>`);
 }
+function b64e(t){return btoa(unescape(encodeURIComponent(t)))}
+function b64d(t){return decodeURIComponent(escape(atob(t)))}
+function backupCode(){return 'XC1-'+b64e(JSON.stringify({n:meta().names[profile],d:JSON.parse(snap())}))}
+function openBackup(){
+ save();const code=backupCode();
+ freshSheet(()=>`<h2>Guardar progresso</h2><p class="sub">Copie este código e guarde num lugar seguro (por exemplo, mande para você mesma no WhatsApp). Se o progresso sumir, é só colar em “Restaurar com código”.</p>
+ <textarea class="inp code" id="bk" readonly rows="5">${code}</textarea>
+ <div class="row">${btn('Copiar código',async()=>{const ta=document.getElementById('bk');try{await navigator.clipboard.writeText(code);toast('Código copiado!')}catch(e){ta.focus();ta.select();try{document.execCommand('copy');toast('Código copiado!')}catch(e2){toast('Selecione o texto e copie manualmente')}}},'green wide')}${btn('Voltar',openMenu,'alt wide')}</div>`);
+}
+function openRestore(){
+ freshSheet(()=>`<h2>Restaurar com código</h2><p class="sub">Cole aqui o código que você guardou. Ele vai substituir a cafeteria de ${esc(meta().names[profile])}.</p>
+ <textarea class="inp code" id="rs" rows="5" placeholder="XC1-..."></textarea>
+ <div class="row">${btn('Voltar',openMenu,'alt wide')}${btn('Restaurar',()=>{const v=(document.getElementById('rs').value||'').trim().replace(/\s+/g,'');
+  try{if(!v.startsWith('XC1-'))throw 0;const o=JSON.parse(b64d(v.slice(4)));const g=o.d;if(!g||g.v!==1||!Array.isArray(g.objs))throw 0;
+   g.last=Date.now();localStorage.setItem(SAVE,JSON.stringify(g));idbSet(SAVE,JSON.stringify(g));S=null;startProfile(profile);closeSheet();toast('Progresso restaurado! Nível '+g.lv+'.')}
+  catch(e){toast('Código inválido. Confira se copiou ele inteiro.')}},'green wide')}</div>`);
+}
 function openMenu(){
- freshSheet(()=>`<h2>Menu</h2><p class="sub">Jogando como ${esc(meta().names[profile])}</p><div class="row" style="flex-direction:column">${btn('Trocar jogador',openProfiles,'alt wide')}${btn('Como jogar',openHelp,'alt wide')}${btn('Som: '+(S.sound?'ligado':'desligado'),()=>{S.sound=S.sound?0:1;save();openMenu()},'alt wide')}${btn('Centralizar câmera',()=>{fit();closeSheet()},'alt wide')}${btn('Recomeçar do zero',()=>confirmBox('Recomeçar do zero?','Todo o progresso desta cafeteria será apagado e não dá para desfazer.','Apagar tudo',()=>{S=newGame();S.tut=1;reindex();initActors();fit();save();toast('Nova cafeteria aberta!')}),'red wide')}</div>`);
+ freshSheet(()=>`<h2>Menu</h2><p class="sub">Jogando como ${esc(meta().names[profile])}</p><div class="row" style="flex-direction:column">${btn('Trocar jogador',openProfiles,'alt wide')}${btn('Guardar progresso (código)',openBackup,'alt wide')}${btn('Restaurar com código',openRestore,'alt wide')}${btn('Como jogar',openHelp,'alt wide')}${btn('Som: '+(S.sound?'ligado':'desligado'),()=>{S.sound=S.sound?0:1;save();openMenu()},'alt wide')}${btn('Centralizar câmera',()=>{fit();closeSheet()},'alt wide')}${btn('Recomeçar do zero',()=>confirmBox('Recomeçar do zero?','Todo o progresso desta cafeteria será apagado e não dá para desfazer.','Apagar tudo',()=>{S=newGame();S.tut=1;reindex();initActors();fit();save();toast('Nova cafeteria aberta!')}),'red wide')}</div>`);
 }
 function showLevel(l){
  const ds=DISHES.filter(d=>d.lv===l).map(d=>d.n),its=Object.values(ITEMS).filter(i=>i.lv===l).map(i=>i.n),fl=[...Object.values(FLOORS).filter(i=>i.lv===l).map(i=>'Piso: '+i.n),...Object.values(WALLS).filter(i=>i.lv===l).map(i=>'Parede: '+i.n)];
@@ -1430,7 +1460,7 @@ function tick(now){
   for(const a of [chef,...waiters,...custs])stepActor(a,dt);
  }
  for(const f of floaters)f.t+=dt;floaters=floaters.filter(f=>f.t<1.4);
- saveT+=dt;if(saveT>5){saveT=0;save()}
+ saveT+=dt;if(saveT>2){saveT=0;save()}
  hudT+=dt;if(hudT>.25){hudT=0;hud();if(lvQueue.length&&!scrim.classList.contains('on'))nextModal()}
  render(now);
  requestAnimationFrame(tick);
@@ -1477,11 +1507,16 @@ function openRename(){
  freshSheet(()=>`<h2>Nomes dos jogadores</h2>${[0,1].map(k=>`<label class="lbl" for="pn${k}">Jogador ${k+1}</label><input id="pn${k}" class="inp" maxlength="16" autocomplete="off" value="${esc(m.names[k])}">`).join('')}
  <div class="row">${btn('Voltar',openProfiles,'alt wide')}${btn('Salvar',()=>{const mm=meta();for(const k of[0,1]){const v=(document.getElementById('pn'+k).value||'').trim();if(v)mm.names[k]=v.slice(0,16)}setMeta(mm);openProfiles()},'green wide')}</div>`);
 }
+(async()=>{
+await Promise.race([restoreIDB(),new Promise(r=>setTimeout(r,1500))]);
 startProfile(meta().last||0);
 pendingModals.unshift(openProfiles);
+if(/Instagram|FBAN|FBAV|Line\/|; wv\)/i.test(navigator.userAgent))pendingModals.unshift(()=>freshSheet(()=>`<h2>Abra no navegador</h2><p>Você abriu o jogo dentro de outro app. Aqui o progresso pode se perder quando fechar.</p><p class="sub">Toque nos três pontinhos ou em “Abrir no navegador” e jogue pelo Safari ou Chrome.</p><div class="row">${btn('Entendi',closeSheet,'green wide')}</div>`));
 if(typeof has3D!=='undefined'&&!has3D)pendingModals.unshift(()=>freshSheet(()=>`<h2>3D indisponível</h2><p>Este navegador não conseguiu ligar os gráficos 3D. Tente abrir no Safari ou Chrome atualizados.</p><div class="row">${btn('Ok',closeSheet,'green wide')}</div>`));
 setTimeout(nextModal,300);
+document.addEventListener('pointerdown',askPersist,{once:true});
 requestAnimationFrame(t=>{lastTick=t;tick(t)});
+})();
 }
 </script>
 </body>
