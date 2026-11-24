@@ -680,9 +680,10 @@ function stepActor(a,dt){
 
 /* ======================= TEMPO, CALENDÁRIO E TURNOS ======================= */
 const DAYLEN=1200;
-const dayPhase=()=>(Date.now()/1000%DAYLEN)/DAYLEN;
+const gT=()=>Date.now()/1000+((S&&S.tOff)||0);
+const dayPhase=()=>(gT()%DAYLEN)/DAYLEN;
 function lightK(p=dayPhase()){let k=p<.075?p/.075:p<.5?1:p<.575?1-(p-.5)/.075:0;return k*k*(3-2*k)}
-const shiftId=()=>Math.floor((Date.now()/1000-45)/600);
+const shiftId=()=>Math.floor((gT()-45)/600);
 const shiftOf=id=>(((id%2)+2)%2===0?'day':'night');
 function gameHour(p=dayPhase()){const sg=[[0,5],[.075,6.5],[.5,18.5],[.575,20],[1,29]];for(let k=0;k<4;k++){const[a,ha]=sg[k],[b,hb]=sg[k+1];if(p<=b)return(ha+(hb-ha)*(p-a)/(b-a))%24}return 5}
 function clockTxt(){const h=gameHour(),hh=Math.floor(h),mm=Math.floor((h-hh)*6)*10;return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0')}
@@ -690,7 +691,11 @@ const mealPeriod=(h=gameHour())=>h>=6&&h<11?'manha':h>=11&&h<15?'almoco':h>=15&&
 const MEAL={manha:['cafe','paoq','misto'],almoco:['feij','lasanha','moq','coxinha'],tarde:['bolo','brig','acai','pudim','cafe'],noite:['pudim','lasanha','moq','feij','misto']};
 const isNight=()=>shiftOf(shiftId())==='night';
 const openNow=()=>!isNight()||S.nightOpen!==false;
-const dayNum=()=>Math.floor(Date.now()/1000/DAYLEN);
+const dayNum=()=>Math.floor(gT()/DAYLEN);
+let skipA=null;
+const canSkip=()=>isNight()&&S.nightOpen===false&&!skipA&&mode==='play';
+function skipNight(){if(!canSkip())return;const id=shiftId(),to=(id+1)*600+45+2-gT();if(to<=0)return;skipA={from:S.tOff||0,to:(S.tOff||0)+to,t0:performance.now()};beep(520,.1,'triangle');beep(660,.1,'triangle',.07,.12);beep(880,.18,'triangle',.07,.24);setBar()}
+function skipTick(now){if(!skipA)return;const k=Math.min(1,(now-skipA.t0)/3000),e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;S.tOff=skipA.from+(skipA.to-skipA.from)*e;if(k>=1){skipA=null;setBar();save();toast('Bom dia! ☀️ A cafeteria abriu.')}}
 let paused=false,blackout=false;
 
 /* ---------- equipe ---------- */
@@ -774,7 +779,7 @@ function shiftTick(dt){
  if(S.curShift===id)return;
  const prev=S.curShift;S.curShift=id;
  if(prev===undefined||prev===null||id-prev>1){payShift(id,true);syncStaff(false);return}
- const next=shiftOf(id),out=S.staff.filter(st=>st.shift===shiftOf(prev)&&st.paid===prev&&st.role==='waiter'&&st.ot!==prev&&(next==='day'||S.nightOpen));
+ const next=shiftOf(id),out=S.staff.filter(st=>st.shift===shiftOf(prev)&&st.paid===prev&&st.role==='waiter'&&st.ot!==prev&&(next==='day'||S.nightOpen)&&(shiftOf(prev)==='day'||S.nightOpen));
  payShift(id);
  if(out.length&&(next==='day'||S.nightOpen))showOT(out,id);
  syncStaff(true);
@@ -2125,6 +2130,7 @@ const IC={
  menu:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
  grow:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>',
  rot:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>',
+ moon:'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/><path d="M15 4l2 2-2 2M19 4l2 2-2 2"/></svg>',
  mis:'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3.5" width="14" height="17" rx="2.5"/><path d="M9 9l1.5 1.5L13.5 7.5M9 15h6"/></svg>',
  x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
 };
@@ -2132,7 +2138,7 @@ function setBar(){
  const bar=$('bar'),hint=$('hint');let h='',hi='';
  const B=(label,ic,fn,cls='',dis)=>{const id='b'+Math.random().toString(36).slice(2,8);barFns[id]=fn;return`<button class="btn ${cls}" id="${id}" ${dis?'disabled':''}>${ic}<span>${label}</span></button>`};
  barFns={};
- if(mode==='play'){h=B('Loja',IC.shop,()=>openShop())+B('Decorar',IC.deco,enterEdit,'alt')+B('Equipe',IC.team,openTeam,'alt')+B('Missões<i class="bn" id="misN"></i>',IC.mis,openMissions,'alt mb')+B('Menu',IC.menu,openMenu,'alt')}
+ if(mode==='play'){h=B('Loja',IC.shop,()=>openShop())+B('Decorar',IC.deco,enterEdit,'alt')+B('Equipe',IC.team,openTeam,'alt')+B('Missões<i class="bn" id="misN"></i>',IC.mis,openMissions,'alt mb')+B('Menu',IC.menu,openMenu,'alt')+(canSkip()?B('Pular noite',IC.moon,skipNight,'green'):'')}
  else if(placing){
   const it=ITEMS[placing.t];hi=placing.move?`Toque no piso para mover: ${it.n}`:`Toque no piso para colocar: ${it.n} (${money(it.price)} moedas)`;
   const ok=placing.ti!=null&&canPlace(placing.ti,placing.tj);
@@ -2168,9 +2174,10 @@ function beep(f,d=.08,type='sine',v=.07,delay=0){
 }
 
 /* ======================= LAÇO ======================= */
-let monT=0;
+let monT=0,skipW=false;
 function tick(now){
  const dt=Math.min(.1,(now-lastTick)/1000);lastTick=now;
+ skipTick(now);{const c=canSkip();if(c!==skipW){skipW=c;if(mode==='play'&&!placing)setBar()}}
  if(mode==='play'&&!paused){
   shiftTick(dt);billTick(dt);dangerTick(dt);
   for(const d of S.dirt)d.age+=dt;
