@@ -1098,8 +1098,13 @@ function usePotion(k){
 }
 function potTick(dt){const b=potOn();if(!b){if(S.buff)S.buff=null;return}if(blackout)return;const k=POT[b.k].k,adv=dt*1000*k/(1-k);
  for(const o of S.objs)if(kind(o)==='stove'&&o.s&&o.s.st==='cook'&&stoveStatus(o)==='cook'){const dur=cookMs(o),left=o.s.t0+dur-Date.now();o.s.t0-=Math.min(adv,Math.max(0,left))}}
+function buyPotion(k){
+ const P=POT[k];if(potOn())return toast('Já tem uma poção ativa neste expediente');if(P.lv>S.lv)return toast('Disponível no nível '+P.lv);
+ S.pot=S.pot||{};if(!(S.pot[k]>0)){if(S.coins<P.price)return toast('Moedas insuficientes');S.coins-=P.price;S.pot[k]=1}
+ usePotion(k);
+}
 function potMenu(){const b=potOn();
- return b?`<p class="sub" style="text-align:center">🧪 ${POT[b.k].n} ativa até o fim do expediente (-${Math.round(POT[b.k].k*100)}% no tempo)</p>`:`<div class="pots">${Object.entries(POT).map(([k,P])=>{const n=(S.pot&&S.pot[k])||0;return`<button class="potb" ${n?'':'disabled'} data-k="${acts.push(()=>{closeSheet();usePotion(k)})-1}">${potSVG(P.c,34)}<b>-${Math.round(P.k*100)}%</b><small>${n?'tem '+n:'nenhuma'}</small></button>`}).join('')}</div>`}
+ return b?`<p class="sub" style="text-align:center">🧪 ${POT[b.k].n} ativa até o fim do expediente (-${Math.round(POT[b.k].k*100)}% no tempo)</p>`:`<div class="pots">${Object.entries(POT).map(([k,P])=>{const n=(S.pot&&S.pot[k])||0,lock=P.lv>S.lv;return`<button class="potb" ${lock||(!n&&S.coins<P.price)?'disabled':''} data-k="${acts.push(()=>{closeSheet();buyPotion(k)})-1}">${potSVG(P.c,34)}<b>-${Math.round(P.k*100)}%</b><small>${lock?'nível '+P.lv:n?'grátis (tem '+n+')':money(P.price)}</small></button>`}).join('')}</div>`}
 
 /* ======================= CHEFS ======================= */
 const CHEFS={
@@ -2190,9 +2195,9 @@ function openShop(tab){
     const fn=()=>{if(lock)return toast('Disponível no nível '+it.lv);if(poor)return toast('Moedas insuficientes');closeSheet();startPlace(t)};
     return`<button class="card ${lock?'locked':''} ${poor&&!lock?'poor':''}" data-k="${acts.push(fn)-1}">${it.col?`<span class="tag col">${COLS[it.col].n}</span>`:''}<span class="art">${itemArt(t)}</span><b>${it.n}</b><span class="meta">${lock?'Nível '+it.lv:it.info}</span><span class="price">${coinI}${money(it.price)}</span></button>`}).join('')}</div>`;
   }else if(shopTab==='pocoes'){
-   body=`<p class="sub">Ative tocando num fogão que está cozinhando ou aqui mesmo. A poção vale por um expediente: todos os fogões cozinham mais rápido até a troca de turno. Uma poção por vez.</p><div class="grid">${Object.entries(POT).map(([k,P])=>{const n=(S.pot&&S.pot[k])||0,lock=P.lv>S.lv,poor=S.coins<P.price;
-    const fn=()=>{if(lock)return toast('Disponível no nível '+P.lv);if(poor)return toast('Moedas insuficientes');S.coins-=P.price;S.pot=S.pot||{};S.pot[k]=(S.pot[k]||0)+1;beep(820,.08);beep(1100,.1,'sine',.07,.08);toast(P.n+' comprada!');save();openShop()};
-    return`<button class="card ${lock?'locked':''} ${poor&&!lock?'poor':''}" data-k="${acts.push(fn)-1}">${n?`<span class="tag">Tem ${n}</span>`:''}<span class="art">${potSVG(P.c,70)}</span><b>${P.n}</b><span class="meta">${lock?'Nível '+P.lv:`-${Math.round(P.k*100)}% no tempo dos pratos por 1 expediente`}</span><span class="price">${coinI}${money(P.price)}</span></button>`}).join('')}</div><h3 style="margin:12px 0 4px;color:var(--cocoa)">Usar agora</h3>${potMenu()}`;
+   body=`<p class="sub">Ao comprar, a poção já é usada: todos os fogões e pratos cozinham mais rápido até a troca de turno. Uma poção por vez.</p><div class="grid">${Object.entries(POT).map(([k,P])=>{const n=(S.pot&&S.pot[k])||0,lock=P.lv>S.lv,poor=S.coins<P.price;
+    const fn=()=>{if(potOn())return toast('Já tem uma poção ativa neste expediente');if(lock)return toast('Disponível no nível '+P.lv);if(poor&&!n)return toast('Moedas insuficientes');closeSheet();buyPotion(k)};
+    return`<button class="card ${lock?'locked':''} ${poor&&!lock?'poor':''}" data-k="${acts.push(fn)-1}">${n?`<span class="tag">Grátis (tem ${n})</span>`:''}<span class="art">${potSVG(P.c,70)}</span><b>${P.n}</b><span class="meta">${lock?'Nível '+P.lv:`-${Math.round(P.k*100)}% no tempo dos pratos por 1 expediente`}</span><span class="price">${coinI}${money(P.price)}</span></button>`}).join('')}</div>${potOn()?potMenu():''}`;
   }else if(shopTab==='seguranca'){
    body=`<p class="sub">Proteja a cafeteria dos perigos da noite. Cada item é comprado uma vez só.</p><div class="grid">${Object.entries(UPG).map(([k,u])=>{const own=S.up[k],lock=u.lv>S.lv,poor=!own&&S.coins<u.price;
     const fn=()=>{if(own)return;if(lock)return toast('Disponível no nível '+u.lv);if(poor)return toast('Moedas insuficientes');S.coins-=u.price;S.up[k]=1;beep(820,.08);beep(1100,.1,'sine',.07,.08);toast(u.n+' instalado!');save();openShop()};
