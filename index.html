@@ -401,7 +401,7 @@ async function idbSet(k,v){const d=await idb();if(!d)return;try{d.transaction('k
 async function idbGet(k){const d=await idb();if(!d)return null;return new Promise(res=>{try{const q=d.transaction('kv').objectStore('kv').get(k);q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null)}catch(e){res(null)}})}
 function save(){if(!S)return;S.last=Date.now();const j=snap();try{localStorage.setItem(SAVE,j)}catch(e){}idbSet(SAVE,j);try{const m=localStorage.getItem('xicara-perfis');if(m)idbSet('xicara-perfis',m)}catch(e){}}
 async function restoreIDB(){ // se o navegador apagou o localStorage mas o IndexedDB sobreviveu, recupera
- for(const k of['xicara-perfis','xicara-cheia-v1','xicara-cheia-v1-p2']){let has=null;try{has=localStorage.getItem(k)}catch(e){}
+ for(const k of['xicara-perfis','xicara-cheia-v1','xicara-cheia-v1-p2','xicara-cheia-v1-p3']){let has=null;try{has=localStorage.getItem(k)}catch(e){}
   const v=await idbGet(k);if(!v)continue;
   if(!has){try{localStorage.setItem(k,v)}catch(e){}}
   else if(k!=='xicara-perfis'){try{const a=JSON.parse(has),b=JSON.parse(v);if((b.last||0)>(a.last||0)+2000)localStorage.setItem(k,v)}catch(e){}}}
@@ -1139,6 +1139,30 @@ function chefPanel(){const cur=S.chef||'basico',own=S.chefs||['basico'];
  return`<div class="colh" style="margin-top:6px">👨‍🍳 Chef de cozinha</div><div class="chefs">${Object.entries(CHEFS).map(([k,C])=>{const on=k===cur,has2=own.includes(k),lock=C.lv>S.lv;
   return`<button class="chefc ${on?'on':''} ${lock&&!has2?'lock':''}" style="--cc:${C.c==='#ffffff'?'#c9b49a':C.c}" data-k="${acts.push(()=>on?toast(C.d,4000):hireChef(k))-1}"><span class="rr">${C.r}</span><b>${C.n}</b><small>${C.d}</small><span class="cp">${on?'Na cozinha':has2?'Colocar na cozinha':lock?'Nível '+C.lv:coinI+money(C.price)}</span></button>`}).join('')}</div>`}
 
+/* ======================= REI ======================= */
+const KING=2,KNAME='Rei Bruno';
+const kh=s=>{let h=5381;for(const c of s)h=((h*33)^c.charCodeAt(0))>>>0;return h.toString(36)};
+const isKing=()=>profile===KING;
+const pname=k=>k===KING?KNAME:meta().names[k];
+function askKing(){
+ freshSheet(()=>`<div class="tipc"><div class="tipi">👑</div><h2>${KNAME}</h2></div><label class="lbl" for="kpw">Senha</label><input id="kpw" class="inp" type="password" autocomplete="off">
+ <div class="row">${btn('Voltar',openProfiles,'alt wide')}${btn('Entrar',()=>{const v=(document.getElementById('kpw').value||'').trim();if(kh(v)!=='oc7hjl'){beep(200,.15,'sawtooth',.04);return toast('Senha errada')}try{localStorage.setItem('xc-rei','oc7hjl')}catch(e){}closeSheet();startProfile(KING);toast('Salve, Rei Bruno! 👑')},'green wide')}</div>`);
+ setTimeout(()=>{const i=document.getElementById('kpw');if(i){i.focus();i.onkeydown=e=>{if(e.key==='Enter')document.querySelectorAll('.sheet .btn.green')[0].click()}}},250);
+}
+function kingDo(f,msg){f();if(msg)toast(msg);beep(880,.06,'triangle');save();openKing()}
+function openKing(){
+ if(!isKing())return;
+ const B=(l,f,c='alt')=>btn(l,f,c+' wide');
+ freshSheet(()=>`<h2>👑 Painel do Rei</h2><p class="sub">Só aparece pro Rei Bruno.</p>
+ <div class="colh">Riqueza</div><div class="cols2">${B('+100.000 moedas',()=>kingDo(()=>S.coins+=100000,'+100.000 moedas'))}${B('+1.000.000 moedas',()=>kingDo(()=>S.coins+=1000000,'+1 milhão!'))}${B('+50 gemas',()=>kingDo(()=>S.gems+=50,'+50 gemas'))}${B('+500 gemas',()=>kingDo(()=>S.gems+=500,'+500 gemas'))}</div>
+ <div class="colh">Nível (agora ${S.lv})</div><div class="cols2">${B('+1 nível',()=>kingDo(()=>{S.lv++;S.xp=0},'Nível '+(S.lv+1)))}${B('+5 níveis',()=>kingDo(()=>{S.lv+=5;S.xp=0},'Nível '+(S.lv+5)))}</div>
+ <div class="colh">Cozinha</div><div class="cols2">${B('Todos os chefs',()=>kingDo(()=>{S.chefs=Object.keys(CHEFS)},'Todos os chefs liberados'))}${B('Pratos prontos já',()=>kingDo(()=>{for(const o of S.objs)if(kind(o)==='stove'&&o.s&&o.s.st==='cook')o.s.t0=Date.now()-cookMs(o)},'Tudo pronto!'))}${B('Poção dourada grátis',()=>{S.buff=null;S.pot=S.pot||{};S.pot.p90=(S.pot.p90||0)+1;closeSheet();usePotion('p90')})}${B('Limpar toda sujeira',()=>kingDo(()=>{S.dirt=[]},'Tudo limpinho'))}</div>
+ <div class="colh">Tempo</div><div class="cols2">${B('Pular pro próximo turno',()=>{closeSheet();skipA={from:S.tOff||0,to:(S.tOff||0)+((shiftId()+1)*600+45+2-gT()),t0:performance.now()}})}${B('Avançar o mês',()=>{S.cal.ms-=30;closeSheet();checkMonth();nextModal()})}</div>
+ <div class="colh">Chamar agora</div><div class="cols2">${B('Crítico',()=>{closeSheet();spawnCustomer({critic:true})&&toast('Crítico chegando!')})}${B('Cliente VIP',()=>{closeSheet();spawnCustomer({vip:true})&&toast('VIP chegando!')})}${B('Hora do rush',()=>{closeSheet();ev={type:'rush',until:performance.now()+60000};spawnT=.3;toast('Rush!')})}${B('Situação do dia a dia',()=>{closeSheet();setTimeout(dilemma,300)})}
+  ${['rats','raccoon','blackout','rowdy'].map(t=>B({rats:'Ratos',raccoon:'Guaxinim',blackout:'Apagão',rowdy:'Baderneiro'}[t],()=>{closeSheet();endDanger();startDanger(t)})).join('')}${B('Fogo',()=>{closeSheet();const o=S.objs.find(o=>kind(o)==='stove');if(!o)return toast('Sem fogão');endDanger();startFire(o)})}</div>
+ <div class="row">${btn('Fechar',closeSheet,'green wide')}</div>`);
+}
+
 /* ======================= PROGRESSO ======================= */
 let lvQueue=[];
 const MLBL={serve:g=>`Sirva ${g} clientes`,cook:g=>`Leve ${g} pratos prontos ao balcão`,earn:g=>`Ganhe ${money(g)} moedas com vendas`};
@@ -1738,6 +1762,7 @@ function buildActor(a){
  if(a.gl&&!isChef&&!isW){for(const s of[-1,1])mesh(h,TOR(.045,.007),M('#2b1a10',.4),s*.075,.015,.2,{ns:1});mesh(h,BX(.05,.008,.008),M('#2b1a10',.4),0,.02,.21,{ns:1})}
  if(isC){mesh(h,new T.SphereGeometry(.228,28,16,0,PI*2,0,PI*.52),M('#3f7fd0',.7),0,.01,-.01,{rx:-.3});mesh(h,SP3(.05,10,8),M('#3f7fd0',.7),0,.06,-.22);for(const s2 of[-1,1])mesh(h,SP3(.04,8,6),M('#3f7fd0',.7),s2*.04,.02,-.25,{s:[1.4,.6,.6]});for(let q=0;q<4;q++)mesh(h,SP3(.025,6,4),M('#ffffff',.7),Math.cos(q*1.6)*.15,.16,Math.sin(q*1.6)*.12,{ns:1})}
  if(isChef){const ck=CH();a.ck=S.chef||'basico';if(a.ck!=='basico'){mesh(h,CY(.176,.176,.05,24),M(ck.c,.5,a.ck==='lendario'?.6:0),0,.17,0);mesh(h,SP3(.035,10,8),M(ck.c,.4,a.ck==='lendario'?.7:0),0,.17,.175)}if(a.ck==='lendario'){const gl=glow('#ffd86a',1.3,.35);gl.position.y=.35;h.add(gl)}
+  if(isKing()){const gm=M('#f5c542',.25,.85),cr=new T.Group();cr.position.set(0,.47,0);mesh(cr,CY(.12,.12,.06,20,true),gm,0,0,0);for(let q=0;q<5;q++){const an=q/5*PI*2;mesh(cr,new T.ConeGeometry(.035,.09,6),gm,Math.cos(an)*.11,.07,Math.sin(an)*.11);mesh(cr,SP3(.02,8,6),M(['#e8465a','#3f8fff','#2fbf98','#9b59ff','#e8465a'][q],.2,.3),Math.cos(an)*.12,.0,Math.sin(an)*.12,{ns:1})}h.add(cr)}
   mesh(h,CY(.17,.17,.12,24),M('#ffffff',.85),0,.2,0);for(const[x,y,z,r]of[[0,.34,0,.15],[-.1,.3,.06,.11],[.1,.3,-.06,.11],[.09,.31,.08,.1],[-.09,.31,-.08,.1]])mesh(h,SP3(r,16,12),M('#ffffff',.85),x,y,z)}
  if(a.vip){const cr=new T.Group();cr.position.set(0,.2,0);h.add(cr);const gm=M('#ffcc33',.25,.85);mesh(cr,CY(.13,.13,.08,16,true),M('#ffcc33',.25,.85,{side:T.DoubleSide}),0,0,0);for(let q=0;q<5;q++){const an=q/5*PI*2;mesh(cr,new T.ConeGeometry(.03,.08,6),gm,Math.sin(an)*.13,.07,Math.cos(an)*.13);mesh(cr,SP3(.018,6,4),M(['#e8465a','#3f7fd0','#2fbf98'][q%3],.2),Math.sin(an)*.13,.02,Math.cos(an)*.135)}const gl=glow('#ffd84a',.7,.5);gl.position.set(0,.05,0);cr.add(gl)}
  if(a.critic){mesh(h,SP3(.2,20,10),M('#7a1f2b',.8),.02,.17,-.02,{s:[1.15,.32,1.15]});mesh(h,SP3(.025,8,6),M('#7a1f2b',.8),.02,.24,-.02);mesh(h,TOR(.04,.006),M('#d4ae3a',.2,.9),.075,.015,.205,{ns:1})}
@@ -2271,7 +2296,7 @@ function openGuide(){
 }
 function b64e(t){return btoa(unescape(encodeURIComponent(t)))}
 function b64d(t){return decodeURIComponent(escape(atob(t)))}
-function backupCode(){return 'XC1-'+b64e(JSON.stringify({n:meta().names[profile],d:JSON.parse(snap())}))}
+function backupCode(){return 'XC1-'+b64e(JSON.stringify({n:pname(profile),d:JSON.parse(snap())}))}
 function openBackup(){
  save();const code=backupCode();
  freshSheet(()=>`<h2>Guardar progresso</h2><p class="sub">Copie este código e guarde num lugar seguro (por exemplo, mande para você mesma no WhatsApp). Se o progresso sumir, é só colar em “Restaurar com código”.</p>
@@ -2279,7 +2304,7 @@ function openBackup(){
  <div class="row">${btn('Copiar código',async()=>{const ta=document.getElementById('bk');try{await navigator.clipboard.writeText(code);toast('Código copiado!')}catch(e){ta.focus();ta.select();try{document.execCommand('copy');toast('Código copiado!')}catch(e2){toast('Selecione o texto e copie manualmente')}}},'green wide')}${btn('Voltar',openMenu,'alt wide')}</div>`);
 }
 function openRestore(){
- freshSheet(()=>`<h2>Restaurar com código</h2><p class="sub">Cole aqui o código que você guardou. Ele vai substituir a cafeteria de ${esc(meta().names[profile])}.</p>
+ freshSheet(()=>`<h2>Restaurar com código</h2><p class="sub">Cole aqui o código que você guardou. Ele vai substituir a cafeteria de ${esc(pname(profile))}.</p>
  <textarea class="inp code" id="rs" rows="5" placeholder="XC1-..."></textarea>
  <div class="row">${btn('Voltar',openMenu,'alt wide')}${btn('Restaurar',()=>{const v=(document.getElementById('rs').value||'').trim().replace(/\s+/g,'');
   try{if(!v.startsWith('XC1-'))throw 0;const o=JSON.parse(b64d(v.slice(4)));const g=o.d;if(!g||g.v!==1||!Array.isArray(g.objs))throw 0;
@@ -2287,7 +2312,7 @@ function openRestore(){
   catch(e){toast('Código inválido. Confira se copiou ele inteiro.')}},'green wide')}</div>`);
 }
 function openMenu(){
- freshSheet(()=>`<h2>Menu</h2><p class="sub">Jogando como ${esc(meta().names[profile])}</p><div class="row" style="flex-direction:column">${btn('Trocar jogador',openProfiles,'alt wide')}${btn('Guardar progresso (código)',openBackup,'alt wide')}${btn('Restaurar com código',openRestore,'alt wide')}${btn('Como jogar',openHelp,'alt wide')}${btn('Som: '+(S.sound?'ligado':'desligado'),()=>{S.sound=S.sound?0:1;save();openMenu()},'alt wide')}${btn('Centralizar câmera',()=>{fit();closeSheet()},'alt wide')}${btn('Recomeçar do zero',()=>confirmBox('Recomeçar do zero?','Todo o progresso desta cafeteria será apagado e não dá para desfazer.','Apagar tudo',()=>{S=newGame();S.tut=1;reindex();initActors();fit();save();toast('Nova cafeteria aberta!')}),'red wide')}</div>`);
+ freshSheet(()=>`<h2>Menu</h2><p class="sub">Jogando como ${esc(pname(profile))}</p><div class="row" style="flex-direction:column">${isKing()?btn('👑 Painel do Rei',openKing,'green wide'):''}${btn('Trocar jogador',openProfiles,'alt wide')}${btn('Guardar progresso (código)',openBackup,'alt wide')}${btn('Restaurar com código',openRestore,'alt wide')}${btn('Como jogar',openHelp,'alt wide')}${btn('Som: '+(S.sound?'ligado':'desligado'),()=>{S.sound=S.sound?0:1;save();openMenu()},'alt wide')}${btn('Centralizar câmera',()=>{fit();closeSheet()},'alt wide')}${btn('Recomeçar do zero',()=>confirmBox('Recomeçar do zero?','Todo o progresso desta cafeteria será apagado e não dá para desfazer.','Apagar tudo',()=>{S=newGame();S.tut=1;reindex();initActors();fit();save();toast('Nova cafeteria aberta!')}),'red wide')}</div>`);
 }
 function showLevel(l){
  const ds=DISHES.filter(d=>d.lv===l).map(d=>d.n),its=Object.values(ITEMS).filter(i=>i.lv===l).map(i=>i.n),fl=[...Object.values(FLOORS).filter(i=>i.lv===l).map(i=>'Piso: '+i.n),...Object.values(WALLS).filter(i=>i.lv===l).map(i=>'Parede: '+i.n)];
@@ -2409,7 +2434,7 @@ function startProfile(k){
  if(S.daily!==today){
   const first=!S.daily;S.daily=today;
   const yest=new Date(Date.now()-864e5).toDateString();S.streak=S.daily0===yest?(S.streak||0)+1:1;S.daily0=today;
-  if(!first){const b=100*S.lv,gem=S.streak%7===0;S.coins+=b;if(gem)S.gems++;pendingModals.push(()=>freshSheet(()=>`<h2>Bônus do dia</h2><p class="sub">Obrigado por voltar à Xícara Cheia, ${esc(meta().names[profile])}. Sequência: ${S.streak} ${S.streak>1?'dias seguidos':'dia'}.</p><div class="big">+${money(b)}</div><p style="text-align:center">moedas${gem?' e <b>1 gema</b> pelos 7 dias seguidos!':''}</p><div class="stk">${[1,2,3,4,5,6,7].map(k=>`<i class="${k<=((S.streak-1)%7)+1?'on':''}">${k===7?'💎':k}</i>`).join('')}</div><div class="row">${btn('Pegar',closeSheet,'green wide')}</div>`))}
+  if(!first){const b=100*S.lv,gem=S.streak%7===0;S.coins+=b;if(gem)S.gems++;pendingModals.push(()=>freshSheet(()=>`<h2>Bônus do dia</h2><p class="sub">Obrigado por voltar à Xícara Cheia, ${esc(pname(profile))}. Sequência: ${S.streak} ${S.streak>1?'dias seguidos':'dia'}.</p><div class="big">+${money(b)}</div><p style="text-align:center">moedas${gem?' e <b>1 gema</b> pelos 7 dias seguidos!':''}</p><div class="stk">${[1,2,3,4,5,6,7].map(k=>`<i class="${k<=((S.streak-1)%7)+1?'on':''}">${k===7?'💎':k}</i>`).join('')}</div><div class="row">${btn('Pegar',closeSheet,'green wide')}</div>`))}
  }
  if(!S.tut){S.tut=1;pendingModals.unshift(()=>freshSheet(()=>`<h2>Bem-vindo à Xícara Cheia!</h2><p class="sub">Sua cafeteria acabou de abrir. Já tem café no balcão e o primeiro cliente está chegando.</p><ol class="steps">
  <li>Toque num <b>fogão</b> e escolha um prato.</li><li>Toque de novo no fogão a cada <b>etapa</b> do preparo.</li><li>Quando estiver <b>pronto</b>, toque para levar ao balcão antes que estrague.</li><li>Os <b>garçons</b> servem os clientes e você ganha moedas, XP e fama.</li></ol><p class="sub">Arraste para mover a câmera, use dois dedos para zoom e o botão Decorar para arrumar o salão.</p><div class="row">${btn('Abrir a cafeteria',closeSheet,'green wide')}</div>`))}
@@ -2418,8 +2443,8 @@ function startProfile(k){
 function openProfiles(){
  const m=meta();
  freshSheet(()=>`<h2>Quem vai jogar?</h2><p class="sub">Cada jogador tem a própria cafeteria, com progresso salvo separado neste aparelho.</p>
- <div class="grid">${[0,1].map(k=>{const g=k===profile?S:peek(k),fn=()=>{closeSheet();if(k!==profile){startProfile(k);toast('Bem-vindo, '+meta().names[k]+'!')}};
-  return`<button class="card" data-k="${acts.push(fn)-1}">${k===profile?'<span class="tag">Atual</span>':''}<span class="art" style="height:56px"><svg viewBox="0 0 24 24" width="40" height="40"><circle cx="12" cy="8" r="5" fill="${k?'#2fbf98':'#ff8a1f'}"/><path d="M3 22c1-5 4.5-7.5 9-7.5s8 2.5 9 7.5z" fill="${k?'#2fbf98':'#ff8a1f'}"/></svg></span><b>${esc(m.names[k])}</b><span class="meta">${g?`Nível ${g.lv} · ${money(g.coins)} moedas`:'Cafeteria nova'}</span></button>`}).join('')}</div>
+ <div class="grid">${[0,1,2].map(k=>{const g=k===profile?S:peek(k),fn=()=>{if(k===KING&&k!==profile)return askKing();closeSheet();if(k!==profile){startProfile(k);toast('Bem-vindo, '+pname(k)+'!')}};
+  return`<button class="card" data-k="${acts.push(fn)-1}">${k===profile?'<span class="tag">Atual</span>':''}<span class="art" style="height:56px">${k===KING?'<span style="font-size:40px;line-height:1">👑</span>':`<svg viewBox="0 0 24 24" width="40" height="40"><circle cx="12" cy="8" r="5" fill="${k?'#2fbf98':'#ff8a1f'}"/><path d="M3 22c1-5 4.5-7.5 9-7.5s8 2.5 9 7.5z" fill="${k?'#2fbf98':'#ff8a1f'}"/></svg>`}</span><b>${esc(pname(k))}</b><span class="meta">${g?`Nível ${g.lv} · ${money(g.coins)} moedas`:'Cafeteria nova'}</span></button>`}).join('')}</div>
  <div class="row">${btn('Mudar os nomes',openRename,'alt wide')}</div>`);
 }
 function openRename(){
@@ -2429,7 +2454,7 @@ function openRename(){
 }
 (async()=>{
 await Promise.race([restoreIDB(),new Promise(r=>setTimeout(r,1500))]);
-startProfile(meta().last||0);
+{let l=meta().last||0;if(l===KING){let ok=false;try{ok=localStorage.getItem('xc-rei')==='oc7hjl'}catch(e){}if(!ok)l=0}startProfile(l)}
 pendingModals.unshift(openProfiles);
 if(/Instagram|FBAN|FBAV|Line\/|; wv\)/i.test(navigator.userAgent))pendingModals.unshift(()=>freshSheet(()=>`<h2>Abra no navegador</h2><p>Você abriu o jogo dentro de outro app. Aqui o progresso pode se perder quando fechar.</p><p class="sub">Toque nos três pontinhos ou em “Abrir no navegador” e jogue pelo Safari ou Chrome.</p><div class="row">${btn('Entendi',closeSheet,'green wide')}</div>`));
 if(typeof has3D!=='undefined'&&!has3D)pendingModals.unshift(()=>freshSheet(()=>`<h2>3D indisponível</h2><p>Este navegador não conseguiu ligar os gráficos 3D. Tente abrir no Safari ou Chrome atualizados.</p><div class="row">${btn('Ok',closeSheet,'green wide')}</div>`));
