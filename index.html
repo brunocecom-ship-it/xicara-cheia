@@ -53,6 +53,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:linear-gradient(#86d2e
 .cols2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.colh{font-weight:800;color:var(--cocoa);font-size:15px;margin:4px 0}.st{background:#fff;border:2px solid var(--line);border-radius:14px;padding:6px 8px;margin-bottom:6px;font-size:13px;line-height:1.2}.st b{display:block;font-size:14px;color:var(--cocoa)}.st .x2{border:0;background:#fde0e3;color:#a52436;border-radius:8px;font:700 12px 'Baloo 2',sans-serif;padding:2px 7px;margin-top:4px;cursor:pointer}.st.off{opacity:.55}
 .row.colb{flex-direction:column}.row.colb .btn{flex:none}
 .pots{display:flex;gap:6px;justify-content:center;margin:6px 0 2px}.potb{flex:1;border:2px solid var(--line);background:#fff;border-radius:14px;padding:4px 2px;display:flex;flex-direction:column;align-items:center;font:700 13px 'Baloo 2',sans-serif;color:var(--cocoa);cursor:pointer;line-height:1.1}.potb small{font-weight:600;color:#7a5a45;font-size:11px}.potb:disabled{opacity:.4}
+.chefs{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 8px;scroll-snap-type:x mandatory}.chefc{flex:0 0 150px;scroll-snap-align:start;border:2px solid var(--line);border-top:6px solid var(--cc);background:#fff;border-radius:14px;padding:6px 8px;text-align:left;display:flex;flex-direction:column;gap:2px;font:600 12px 'Baloo 2',sans-serif;color:var(--cocoa);cursor:pointer;line-height:1.2}.chefc b{font-size:15px}.chefc small{color:#7a5a45;flex:1}.chefc .rr{align-self:flex-start;background:var(--cc);color:#fff;border-radius:8px;padding:0 6px;font-weight:800;font-size:11px;text-shadow:0 1px 1px rgba(0,0,0,.3)}.chefc .cp{font-weight:800;color:var(--tangD);display:flex;align-items:center;gap:3px}.chefc .cp svg{width:14px;height:14px}.chefc.on{background:#fff8e6;box-shadow:0 0 0 2px var(--cc) inset}.chefc.on .cp{color:#1d8a6c}.chefc.lock{opacity:.5}
 .tog{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed #e3cba8}
 .evb{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top) + 86px);z-index:5;display:none;gap:6px;pointer-events:none}.evb.on{display:flex}.evb span{background:#e8465a;color:#fff;font-weight:800;font-size:14px;padding:5px 12px;border-radius:999px;box-shadow:0 3px 0 rgba(0,0,0,.25);white-space:nowrap}.evb span.c{background:#ff8a1f}
 .mis{background:#fff;border:2px solid var(--line);border-radius:16px;padding:10px 12px;margin-bottom:10px}.mis .mt{display:flex;justify-content:space-between;align-items:center;gap:8px}.mis .mt span{font-weight:700;color:var(--tangD);white-space:nowrap}.mis .btn{min-height:40px;font-size:14px}
@@ -432,8 +433,8 @@ function fmt(s){s=Math.max(0,Math.ceil(s));if(s<60)return s+'s';const m=Math.flo
 const money=n=>Math.round(n).toLocaleString('pt-BR');
 
 /* ======================= COZINHA ======================= */
-const cookMs=o=>DISH[o.s.d].t*ITEMS[o.t].speed*1000;
-const spoilMs=d=>Math.max(2*d,360000);
+const cookMs=o=>DISH[o.s.d].t*ITEMS[o.t].speed*(o.s.cm||1)*1000;
+const spoilMs=d=>Math.max(2*d,360000)*CH().sl;
 function stoveStatus(o){
  const s=o.s;if(!s)return 'empty';if(s.st==='prep')return 'prep';
  const d=cookMs(o),now=Date.now();
@@ -513,7 +514,7 @@ function startChef(t){
 }
 function updateChef(dt){
  const t=chef.task;
- if(!t){if(chef.queue.length)startChef(chef.queue.shift());return}
+ if(!t){if(chef.queue.length)startChef(chef.queue.shift());else chefServe(dt);return}
  if(t.x2)return updChef2(t,dt);
  const o=t.obj;
  if(t.phase==='walk'&&!chef.path.length){t.phase='work';chef.work=0;faceTo(chef,o)}
@@ -523,7 +524,7 @@ function updateChef(dt){
    const s=o.s;if(s)s.q=Math.max(0,(s.q||0)-1);
    if(t.type==='step'&&s&&s.st==='prep'){
     const d=DISH[s.d];addFloat(o.i+.5,o.j+.5,60,d.steps[s.step]+'!','#fff');s.step++;
-    if(s.step>=d.steps.length){o.s={st:'cook',d:s.d,t0:Date.now()};beep(520,.12,'triangle');addFloat(o.i+.5,o.j+.5,80,'No fogo!','#ffd23f')}
+    if(s.step>=d.steps.length){o.s={st:'cook',d:s.d,t0:Date.now(),cm:CH().sp};beep(520,.12,'triangle');addFloat(o.i+.5,o.j+.5,80,'No fogo!','#ffd23f')}
     else beep(600,.06);
     chef.task=null;
    }else if(t.type==='clean'){o.s=null;chef.task=null;beep(250,.1,'square',.04)}
@@ -1065,13 +1066,14 @@ function updChef2(t,dt){
  const o=t.obj;
  if(t.phase==='walk'&&!chef.path.length){t.phase='work';chef.work=0;faceTo(chef,o);return}
  if(t.phase==='work'){chef.work+=dt;if(chef.work<t.dur)return;
+  if(t.type==='serve'){serveStep(t);return}
   if(t.type==='freeze'){if(stoveStatus(o)!=='ready'){t.fail(stoveStatus(o)==='spoiled'?'Estragou antes de chegar!':'');chef.task=null;return}
    const d=DISH[o.s.d];chef.carry={d:d.id,n:d.sv,fz:1};o.s=null;addXp(d.xp);mis('cook',1);S.bill.agua+=4;if(Math.random()<.35)addDirt(o.i,o.j+1,'grease');addFloat(o.i+.5,o.j+.5,60,'+'+d.xp+' XP','#9fe8ff');beep(880,.08,'triangle');t.tgt=t.f}
   else if(t.type==='thaw'){const it=o.s.items,i=it.findIndex(x=>x.d===t.d);if(i<0){t.fail();chef.task=null;return}const x=it.splice(i,1)[0];chef.carry={d:x.d,n:x.n,fz:1};beep(1200,.05,'sine',.04);t.tgt=t.m}
   else if(t.type==='mcollect'){if(microStatus(o)!=='ready'){t.fail(microStatus(o)==='spoiled'?'Estragou no micro-ondas!':'');chef.task=null;return}chef.carry={d:o.s.d,n:o.s.n,fz:1};o.s=null;beep(880,.08,'triangle');t.tgt=t.counter}
   else{o.s=null;chef.task=null;beep(250,.1,'square',.04);return}
   t.phase='walk2';if(!t.tgt||!S.objs.includes(t.tgt)||!goTo(chef,adjFree(t.tgt))){dep2(t)}return}
- if(t.phase==='walk2'&&!chef.path.length){t.phase='work2';chef.work=0;faceTo(chef,t.tgt);return}
+ if(t.phase==='walk2'&&!chef.path.length){if(t.type==='serve'){serveDone(t);return}t.phase='work2';chef.work=0;faceTo(chef,t.tgt);return}
  if(t.phase==='work2'){chef.work+=dt;if(chef.work>=.4)dep2(t)}
 }
 function dep2(t){
@@ -1098,6 +1100,39 @@ function potTick(dt){const b=potOn();if(!b){if(S.buff)S.buff=null;return}if(blac
  for(const o of S.objs)if(kind(o)==='stove'&&o.s&&o.s.st==='cook'&&stoveStatus(o)==='cook'){const dur=cookMs(o),left=o.s.t0+dur-Date.now();o.s.t0-=Math.min(adv,Math.max(0,left))}}
 function potMenu(){const b=potOn();
  return b?`<p class="sub" style="text-align:center">🧪 ${POT[b.k].n} ativa até o fim do expediente (-${Math.round(POT[b.k].k*100)}% no tempo)</p>`:`<div class="pots">${Object.entries(POT).map(([k,P])=>{const n=(S.pot&&S.pot[k])||0;return`<button class="potb" ${n?'':'disabled'} data-k="${acts.push(()=>{closeSheet();usePotion(k)})-1}">${potSVG(P.c,34)}<b>-${Math.round(P.k*100)}%</b><small>${n?'tem '+n:'nenhuma'}</small></button>`}).join('')}</div>`}
+
+/* ======================= CHEFS ======================= */
+const CHEFS={
+ basico:{n:'Chef Juca',r:'Básico',sp:1,sl:1,c:'#ffffff',lv:1,price:0,d:'O chef de sempre. Você toca em cada etapa do preparo.'},
+ incomum:{n:'Chef Marieta',r:'Incomum',sp:.9,sl:1.1,c:'#3ccf6e',lv:4,price:10000,d:'Cozinha 10% mais rápido e a comida estraga 10% mais devagar.'},
+ raro:{n:'Chef Benedito',r:'Raro',sp:.8,sl:1.2,c:'#3f8fff',lv:8,price:35000,auto:1,d:'20% mais rápido, comida estraga 20% mais devagar e faz o preparo sozinho: é só escolher o prato.'},
+ epico:{n:'Chef Valentina',r:'Épico',sp:.7,sl:1.3,c:'#9b59ff',lv:13,price:90000,auto:1,serve:1,d:'30% mais rápido, comida estraga 30% mais devagar, preparo sozinho e ajuda a servir quando está parado.'},
+ lendario:{n:'Chef Dom Aurélio',r:'Lendário',sp:.5,sl:Infinity,c:'#f5c542',lv:18,price:250000,auto:1,serve:1,d:'50% mais rápido, a comida nunca estraga, preparo sozinho e ajuda a servir.'}
+};
+const CH=()=>CHEFS[S.chef]||CHEFS.basico;
+function autoPrep(o){if(!CH().auto||!o.s||o.s.st!=='prep')return false;const d=DISH[o.s.d],left=d.steps.length-o.s.step-(o.s.q||0);for(let k=0;k<left;k++){o.s.q=(o.s.q||0)+1;chef.queue.push({type:'step',id:o.id})}toast(`${CH().n} vai preparar tudo sozinho`);return true}
+function chefServe(dt){
+ if(!CH().serve||mode!=='play')return;chef.idleT=(chef.idleT||0)+dt;if(chef.idleT<1.2)return;chef.idleT=0;
+ for(const c of custs){if(c.state!=='order'||c.waiter)continue;const o=S.objs.find(o=>kind(o)==='counter'&&avail(o)>0&&o.s.d===c.order);if(!o)continue;
+  if(!goTo(chef,adjFree(o)))continue;o.res=(o.res||0)+1;c.waiter=chef;chef.task={type:'serve',x2:1,phase:'walk',obj:o,c,dur:.3,fail:()=>{}};return}
+}
+function serveStep(t){
+ const o=t.obj,c=t.c;o.res=Math.max(0,(o.res||0)-1);
+ if(!S.objs.includes(o)||!o.s||o.s.n<=0||c.gone||c.state!=='order'){if(c.waiter===chef)c.waiter=null;chef.task=null;return}
+ o.s.n--;chef.carry={d:o.s.d,fz:o.s.fz,n:1};if(o.s.n<=0&&!o.cres)o.s=null;
+ const goals=new Set([...adjFree(c.chair),...adjFree(c.table)]);t.phase='walk2';t.tgt=c.chair;
+ if(!goals.size||!goTo(chef,goals))serveDone(t);
+}
+function serveDone(t){const c=t.c,had=chef.carry;chef.carry=null;chef.task=null;if(c.waiter===chef)c.waiter=null;if(c.gone||c.state!=='order')return;c.state='eat';c.t=0;c.fz=had&&had.fz;faceTo(chef,c.chair);addFloat(chef.x+.5,chef.y+.5,70,'Servido pelo chef!','#ffd23f')}
+function hireChef(k){
+ const C=CHEFS[k];S.chefs=S.chefs||['basico'];
+ if(S.chefs.includes(k)){if(chef.task&&chef.task.type==='serve')return toast('Espere o chef terminar de servir');S.chef=k;toast(`${C.n} assumiu a cozinha!`);beep(820,.08);save();return openTeam()}
+ if(C.lv>S.lv)return toast('Disponível no nível '+C.lv);if(S.coins<C.price)return toast('Moedas insuficientes');
+ confirmBox(`Contratar ${C.n}?`,`Chef ${C.r} por ${money(C.price)} moedas. Sem salário, e ele fica guardado na sua equipe.`,'Contratar',()=>{S.coins-=C.price;S.chefs.push(k);S.chef=k;beep(820,.08);beep(1100,.1,'sine',.07,.08);beep(1320,.14,'sine',.07,.18);toast(`${C.n} assumiu a cozinha!`);save();openTeam()});
+}
+function chefPanel(){const cur=S.chef||'basico',own=S.chefs||['basico'];
+ return`<div class="colh" style="margin-top:6px">👨‍🍳 Chef de cozinha</div><div class="chefs">${Object.entries(CHEFS).map(([k,C])=>{const on=k===cur,has2=own.includes(k),lock=C.lv>S.lv;
+  return`<button class="chefc ${on?'on':''} ${lock&&!has2?'lock':''}" style="--cc:${C.c==='#ffffff'?'#c9b49a':C.c}" data-k="${acts.push(()=>on?toast(C.d,4000):hireChef(k))-1}"><span class="rr">${C.r}</span><b>${C.n}</b><small>${C.d}</small><span class="cp">${on?'Na cozinha':has2?'Colocar na cozinha':lock?'Nível '+C.lv:coinI+money(C.price)}</span></button>`}).join('')}</div>`}
 
 /* ======================= PROGRESSO ======================= */
 let lvQueue=[];
@@ -1697,7 +1732,8 @@ function buildActor(a){
  if(hs===5){const t=new T.Group();t.position.set(0,.08,-.2);mesh(t,CAP(.055,.16),hairM,0,-.12,-.03);mesh(t,SP3(.03,8,6),M(a.capC,.5),0,0,0);h.add(t);U.tail=t}
  if(a.gl&&!isChef&&!isW){for(const s of[-1,1])mesh(h,TOR(.045,.007),M('#2b1a10',.4),s*.075,.015,.2,{ns:1});mesh(h,BX(.05,.008,.008),M('#2b1a10',.4),0,.02,.21,{ns:1})}
  if(isC){mesh(h,new T.SphereGeometry(.228,28,16,0,PI*2,0,PI*.52),M('#3f7fd0',.7),0,.01,-.01,{rx:-.3});mesh(h,SP3(.05,10,8),M('#3f7fd0',.7),0,.06,-.22);for(const s2 of[-1,1])mesh(h,SP3(.04,8,6),M('#3f7fd0',.7),s2*.04,.02,-.25,{s:[1.4,.6,.6]});for(let q=0;q<4;q++)mesh(h,SP3(.025,6,4),M('#ffffff',.7),Math.cos(q*1.6)*.15,.16,Math.sin(q*1.6)*.12,{ns:1})}
- if(isChef){mesh(h,CY(.17,.17,.12,24),M('#ffffff',.85),0,.2,0);for(const[x,y,z,r]of[[0,.34,0,.15],[-.1,.3,.06,.11],[.1,.3,-.06,.11],[.09,.31,.08,.1],[-.09,.31,-.08,.1]])mesh(h,SP3(r,16,12),M('#ffffff',.85),x,y,z)}
+ if(isChef){const ck=CH();a.ck=S.chef||'basico';if(a.ck!=='basico'){mesh(h,CY(.176,.176,.05,24),M(ck.c,.5,a.ck==='lendario'?.6:0),0,.17,0);mesh(h,SP3(.035,10,8),M(ck.c,.4,a.ck==='lendario'?.7:0),0,.17,.175)}if(a.ck==='lendario'){const gl=glow('#ffd86a',1.3,.35);gl.position.y=.35;h.add(gl)}
+  mesh(h,CY(.17,.17,.12,24),M('#ffffff',.85),0,.2,0);for(const[x,y,z,r]of[[0,.34,0,.15],[-.1,.3,.06,.11],[.1,.3,-.06,.11],[.09,.31,.08,.1],[-.09,.31,-.08,.1]])mesh(h,SP3(r,16,12),M('#ffffff',.85),x,y,z)}
  if(a.vip){const cr=new T.Group();cr.position.set(0,.2,0);h.add(cr);const gm=M('#ffcc33',.25,.85);mesh(cr,CY(.13,.13,.08,16,true),M('#ffcc33',.25,.85,{side:T.DoubleSide}),0,0,0);for(let q=0;q<5;q++){const an=q/5*PI*2;mesh(cr,new T.ConeGeometry(.03,.08,6),gm,Math.sin(an)*.13,.07,Math.cos(an)*.13);mesh(cr,SP3(.018,6,4),M(['#e8465a','#3f7fd0','#2fbf98'][q%3],.2),Math.sin(an)*.13,.02,Math.cos(an)*.135)}const gl=glow('#ffd84a',.7,.5);gl.position.set(0,.05,0);cr.add(gl)}
  if(a.critic){mesh(h,SP3(.2,20,10),M('#7a1f2b',.8),.02,.17,-.02,{s:[1.15,.32,1.15]});mesh(h,SP3(.025,8,6),M('#7a1f2b',.8),.02,.24,-.02);mesh(h,TOR(.04,.006),M('#d4ae3a',.2,.9),.075,.015,.205,{ns:1})}
  g.traverse(m=>{if(m.isMesh)m.receiveShadow=false});
@@ -1794,7 +1830,7 @@ function syncObjects(now,dt){
 function syncActors(now,dt){
  updPeds(dt);
  const list=(mode==='play'?[chef,...waiters,...cleaners,...leavers,...custs]:[chef]).concat(peds),seen=new Set(list);
- for(const a of list){let g=actG.get(a);if(!g){g=buildActor(a);actG.set(a,g);root.actors.add(g)}updateActor(a,g,now,dt)}
+ for(const a of list){let g=actG.get(a);if(g&&a===chef&&a.ck!==(S.chef||'basico')){root.actors.remove(g);actG.delete(a);g=null}if(!g){g=buildActor(a);actG.set(a,g);root.actors.add(g)}updateActor(a,g,now,dt)}
  for(const[a,g]of actG)if(!seen.has(a)){root.actors.remove(g);actG.delete(a)}
 }
 
@@ -2124,14 +2160,14 @@ function confirmBox(title,text,ok,fn,cls='red'){freshSheet(()=>`<h2>${title}</h2
 function openDishes(o){
  const sp=ITEMS[o.t].speed;
  freshSheet(()=>`<h2>O que vamos cozinhar?</h2><p class="sub">Você tem ${money(S.coins)} moedas. Depois de escolher, toque no fogão para cada etapa do preparo.</p><div class="grid">${DISHES.map(d=>{
-  const cost=S.cheap&&S.cheap>=dayNum()?Math.round(d.cost*.7):d.cost,lock=d.lv>S.lv,poor=S.coins<cost,fn=()=>{if(lock)return toast('Disponível no nível '+d.lv);if(poor)return toast('Moedas insuficientes');S.coins-=cost;o.s={st:'prep',d:d.id,step:0,q:0};closeSheet();beep(600,.06);toast('Toque no fogão: '+d.steps[0]);save()};
+  const cost=S.cheap&&S.cheap>=dayNum()?Math.round(d.cost*.7):d.cost,lock=d.lv>S.lv,poor=S.coins<cost,fn=()=>{if(lock)return toast('Disponível no nível '+d.lv);if(poor)return toast('Moedas insuficientes');S.coins-=cost;o.s={st:'prep',d:d.id,step:0,q:0};closeSheet();beep(600,.06);if(!autoPrep(o))toast('Toque no fogão: '+d.steps[0]);save()};
   return`<button class="card ${lock?'locked':''} ${poor&&!lock?'poor':''}" data-k="${acts.push(fn)-1}"><span class="art"><img src="data:image/svg+xml,${encodeURIComponent(dishSVG(d))}" width="56" height="56" alt=""></span><b>${d.n}</b><span class="meta">${lock?'Nível '+d.lv:`${fmt(d.t*sp)} · ${d.sv} porções · ${d.steps.length} etapas`}</span><span class="meta">${lock?'':`Vende ${money(d.sv*d.p)} · +${d.xp} XP`}</span><span class="price">${coinI}${money(cost)}</span></button>`}).join('')}</div>`);
 }
 function openStoveInfo(o){
  const d=DISH[o.s.d],dur=cookMs(o),left=Math.max(0,(o.s.t0+dur-Date.now())/1000),g=gemCost(o);
  freshSheet(()=>`<h2>${d.n}</h2><p class="sub">${ITEMS[o.t].n} · rende ${d.sv} porções</p>
   <div class="big">${fmt(left)}</div><div class="pbar"><i style="width:${(1-left/(dur/1000))*100}%"></i></div>
-  <p class="sub">Quando ficar pronto você tem ${fmt(spoilMs(dur)/1000)} para levar ao balcão antes de estragar.</p>
+  <p class="sub">${CH().sl===Infinity?`Com o ${CH().n}, nada estraga no fogão.`:`Quando ficar pronto você tem ${fmt(spoilMs(dur)/1000)} para levar ao balcão antes de estragar.`}</p>
   ${potMenu()}
   <div class="row">${btn(`Acelerar · ${g} ${g>1?'gemas':'gema'}`,()=>{if(S.gems<g)return toast('Gemas insuficientes. Gemas vêm a cada 5 níveis, da nota máxima do crítico e do bônus de 7 dias seguidos.');S.gems-=g;o.s.t0=Date.now()-dur;closeSheet();beep(900,.1,'triangle');save()},'green wide',S.gems<g)}
   ${btn('Jogar fora',()=>confirmBox('Jogar fora?','Os ingredientes não são devolvidos.','Jogar fora',()=>{o.s=null;save()}),'alt wide')}</div>`);
@@ -2192,9 +2228,9 @@ function openTeam(){
    return`<div><div class="colh">${sh==='day'?'☀️ Turno do dia':'🌙 Turno da noite'}${cur===sh?' · agora':''}</div>${L.length?L.map(st=>{const off=cur===sh&&!onDuty(id).includes(st),tired=st.tired===shiftId()+(cur===sh?0:1)&&!has(st,'coruja');
     return`<div class="st ${off?'off':''}"><b>${esc(st.nm)}${st.rare?' ⭐':''}</b>${ROLE[st.role]} · ${money(wage(st))}/turno${st.ot===id?' · hora extra':''}${tired?' · cansado 😴':''}${off?' · faltou':''}<br>${trChips(st)}<br><button class="x2" data-k="${acts.push(()=>fireStaff(st))-1}">Demitir · multa ${money(wage(st))}</button></div>`}).join(''):'<p class="sub">Ninguém neste turno.</p>'}
     ${canHire('waiter',sh)?btn('+ Garçom',()=>openCands('waiter',sh),'alt wide'):''}${S.lv>=6&&canHire('cleaner',sh)?btn('+ Faxineira',()=>openCands('cleaner',sh),'alt wide'):''}</div>`};
-  return`<h2>Equipe</h2><p class="sub">O chef é você: trabalha nos dois turnos e não recebe salário. Garçons e faxineiras recebem no começo de cada turno, só enquanto você está jogando.</p>
+  return`<h2>Equipe</h2><p class="sub">O chef trabalha nos dois turnos e não recebe salário. Garçons e faxineiras recebem no começo de cada turno, só enquanto você está jogando.</p>
   <div class="tog"><span><b>Abrir à noite</b><br><span class="sub" style="margin:0">Fechado: sem clientes, sem salários e sem perigos à noite.</span></span>${btn(S.nightOpen?'Aberto':'Fechado',()=>{S.nightOpen=!S.nightOpen;if(isNight()){if(S.nightOpen){S.paidShift=null;payShift(id)}syncStaff(true)}save();openTeam()},S.nightOpen?'green':'alt')}</div>
-  <div class="cols2">${col('day')}${col('night')}</div>
+  ${chefPanel()}<div class="cols2">${col('day')}${col('night')}</div>
   <p class="sub">Máximo de ${maxWaiters()} garçons por turno no nível ${S.lv}${S.lv>=6?' e 1 faxineira por turno':' · faxineira libera no nível 6'}.</p>`});
 }
 function fireStaff(st){
