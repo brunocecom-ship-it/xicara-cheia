@@ -52,6 +52,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:linear-gradient(#86d2e
 .cands{display:grid;gap:10px}.cand{background:#fff;border:2px solid var(--line);border-radius:16px;padding:10px;display:flex;gap:10px;align-items:center}.cand.rare{border-color:#e8b923;background:linear-gradient(135deg,#fffbe8,#fff3c4);box-shadow:0 0 0 2px #ffe27a inset}.cand img{width:64px;height:64px;border-radius:14px;background:#fbf1e2;flex:none}.cand .ci{flex:1}.cand b{display:block;color:var(--cocoa);font-size:16px;line-height:1.15}.tr{display:inline-block;border-radius:8px;padding:0 6px;font-size:12px;font-weight:700;margin:2px 3px 0 0}.tr.g{background:#d6f5ea;color:#1d8a6c}.tr.b{background:#fde0e3;color:#a52436}.cand .btn{min-height:40px;min-width:0;font-size:14px;padding:4px 12px}
 .cols2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.colh{font-weight:800;color:var(--cocoa);font-size:15px;margin:4px 0}.st{background:#fff;border:2px solid var(--line);border-radius:14px;padding:6px 8px;margin-bottom:6px;font-size:13px;line-height:1.2}.st b{display:block;font-size:14px;color:var(--cocoa)}.st .x2{border:0;background:#fde0e3;color:#a52436;border-radius:8px;font:700 12px 'Baloo 2',sans-serif;padding:2px 7px;margin-top:4px;cursor:pointer}.st.off{opacity:.55}
 .row.colb{flex-direction:column}.row.colb .btn{flex:none}
+.pots{display:flex;gap:6px;justify-content:center;margin:6px 0 2px}.potb{flex:1;border:2px solid var(--line);background:#fff;border-radius:14px;padding:4px 2px;display:flex;flex-direction:column;align-items:center;font:700 13px 'Baloo 2',sans-serif;color:var(--cocoa);cursor:pointer;line-height:1.1}.potb small{font-weight:600;color:#7a5a45;font-size:11px}.potb:disabled{opacity:.4}
 .tog{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed #e3cba8}
 .evb{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top) + 86px);z-index:5;display:none;gap:6px;pointer-events:none}.evb.on{display:flex}.evb span{background:#e8465a;color:#fff;font-weight:800;font-size:14px;padding:5px 12px;border-radius:999px;box-shadow:0 3px 0 rgba(0,0,0,.25);white-space:nowrap}.evb span.c{background:#ff8a1f}
 .mis{background:#fff;border:2px solid var(--line);border-radius:16px;padding:10px 12px;margin-bottom:10px}.mis .mt{display:flex;justify-content:space-between;align-items:center;gap:8px}.mis .mt span{font-weight:700;color:var(--tangD);white-space:nowrap}.mis .btn{min-height:40px;font-size:14px}
@@ -110,7 +111,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:linear-gradient(#86d2e
   <div class="chip" title="Fama"><span class="ic"><svg viewBox="0 0 24 24"><path d="M12 2l3 6.5 7 .8-5.2 4.8 1.4 7L12 17.6 5.8 21l1.4-7L2 9.3l7-.8z" fill="#ffd23f"/></svg></span><div class="fame"><i id="fameB"></i></div></div>
 </div>
 
-<div class="top2"><div class="chip clk" id="clkC" title="Relógio"><span class="ic" id="clkI">☀️</span><span id="clkT">08:00</span></div><div class="chip bill" id="billC" title="Despesas do mês"><span class="ic">🧾</span><span id="billT">Dia 1/30 · 0</span></div><div class="chip sh" id="shC" title="Turno"><span id="shT">Dia</span></div></div>
+<div class="top2"><div class="chip clk" id="clkC" title="Relógio"><span class="ic" id="clkI">☀️</span><span id="clkT">08:00</span></div><div class="chip bill" id="billC" title="Despesas do mês"><span class="ic">🧾</span><span id="billT">Dia 1/30 · 0</span></div><div class="chip sh" id="shC" title="Turno"><span id="shT">Dia</span></div><div class="chip sh" id="potC" style="display:none"><span id="potT"></span></div></div>
 <div class="otc" id="otc"></div>
 <button class="round misb" id="misBtn" aria-label="Missões"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3.5" width="14" height="17" rx="2.5"/><path d="M9 9l1.5 1.5L13.5 7.5M9 15h6"/></svg></button>
 <div class="evb" id="evb"></div>
@@ -1082,6 +1083,22 @@ function dep2(t){
 let microBeep={};
 function microTick(){for(const m of S.objs){if(kind(m)!=='micro'||!m.s)continue;const st=microStatus(m);if(st==='ready'&&!microBeep[m.id]){microBeep[m.id]=1;beep(1568,.12,'sine',.06);beep(2093,.18,'sine',.06,.14)}if(st!=='ready')microBeep[m.id]=0;if(st==='thaw')S.bill.luz+=.002}}
 
+/* ======================= POÇÕES ======================= */
+const POT={p30:{n:'Poção verde',k:.3,price:2000,lv:1,c:'#3ccf6e'},p50:{n:'Poção azul',k:.5,price:4000,lv:1,c:'#3f8fff'},p70:{n:'Poção roxa',k:.7,price:8000,lv:10,c:'#9b59ff'},p90:{n:'Poção dourada',k:.9,price:16000,lv:20,c:'#f5c542'}};
+function potSVG(c,sz=64){return`<svg viewBox="0 0 64 64" width="${sz}" height="${sz}"><path d="M25 8h14v4h-2v12l14 22a8 8 0 0 1-7 12H20a8 8 0 0 1-7-12l14-22V12h-2z" fill="#e8f4f8" stroke="#3b2418" stroke-width="2.5" stroke-linejoin="round"/><path d="M19 36h26l7 11a5 5 0 0 1-4.5 8h-31a5 5 0 0 1-4.5-8z" fill="${c}"/><circle cx="27" cy="45" r="3" fill="#fff" opacity=".6"/><circle cx="36" cy="40" r="2" fill="#fff" opacity=".5"/><rect x="23" y="4" width="18" height="6" rx="2" fill="#a5683b" stroke="#3b2418" stroke-width="2"/></svg>`}
+const potOn=()=>S.buff&&S.buff.sh===shiftId()?S.buff:null;
+function usePotion(k){
+ if(potOn())return toast('Já tem uma poção ativa neste expediente');
+ if(!(S.pot&&S.pot[k]>0))return toast('Você não tem essa poção. Compre na Loja, aba Poções.');
+ const P=POT[k];S.pot[k]--;S.buff={k,sh:shiftId()};
+ for(const o of S.objs)if(kind(o)==='stove'&&o.s&&o.s.st==='cook')o.potFx={c:P.c,t:performance.now()};
+ toast(`${P.n} ativa! Os fogões cozinham ${Math.round(P.k*100)}% mais rápido até o fim do expediente.`,3500);beep(660,.08,'sine',.06);beep(990,.1,'sine',.06,.08);beep(1320,.14,'sine',.06,.16);save();
+}
+function potTick(dt){const b=potOn();if(!b){if(S.buff)S.buff=null;return}if(blackout)return;const k=POT[b.k].k,adv=dt*1000*k/(1-k);
+ for(const o of S.objs)if(kind(o)==='stove'&&o.s&&o.s.st==='cook'&&stoveStatus(o)==='cook'){const dur=cookMs(o),left=o.s.t0+dur-Date.now();o.s.t0-=Math.min(adv,Math.max(0,left))}}
+function potMenu(){const b=potOn();
+ return b?`<p class="sub" style="text-align:center">🧪 ${POT[b.k].n} ativa até o fim do expediente (-${Math.round(POT[b.k].k*100)}% no tempo)</p>`:`<div class="pots">${Object.entries(POT).map(([k,P])=>{const n=(S.pot&&S.pot[k])||0;return`<button class="potb" ${n?'':'disabled'} data-k="${acts.push(()=>{closeSheet();usePotion(k)})-1}">${potSVG(P.c,34)}<b>-${Math.round(P.k*100)}%</b><small>${n?'tem '+n:'nenhuma'}</small></button>`}).join('')}</div>`}
+
 /* ======================= PROGRESSO ======================= */
 let lvQueue=[];
 const MLBL={serve:g=>`Sirva ${g} clientes`,cook:g=>`Leve ${g} pratos prontos ao balcão`,earn:g=>`Ganhe ${money(g)} moedas com vendas`};
@@ -1748,6 +1765,8 @@ function syncObjects(now,dt){
    U.steam.forEach((s,q)=>{const ph=((now/1000)*.55+q/4)%1;s.visible=hot;s.position.set(Math.sin(ph*6+q)*.08,1.0+ph*.7,.02);s.material.opacity=(1-ph)*.45;s.scale.setScalar(.2+ph*.35)});
    U.spark.material.opacity=st==='ready'?.5+Math.sin(now/180)*.3:0;
    U.root=g;fireFx(U,!!o.fire,now);
+   if(o.potFx){const t=(performance.now()-o.potFx.t)/2500;if(!U.pfx||U.pfxC!==o.potFx.c){if(U.pfx)g.remove(U.pfx);U.pfx=new T.Group();U.pfxC=o.potFx.c;const m=new T.MeshBasicMaterial({color:new T.Color(o.potFx.c),transparent:true});for(let q=0;q<14;q++){const b=new T.Mesh(SP3(.035+hash(q,3)*.03,8,6),m);b.userData.a=hash(q,1)*6.28;b.userData.r=.1+hash(q,2)*.25;b.userData.d=hash(q,4)*.6;U.pfx.add(b)}const gl=glow(o.potFx.c,1.6,.9);gl.position.y=1.1;U.pfx.add(gl);U.pfxG=gl;g.add(U.pfx)}
+    if(t>=1){U.pfx.visible=false;o.potFx=null}else{U.pfx.visible=true;U.pfx.children.forEach(b=>{if(b===U.pfxG){b.material.opacity=.9*(1-t);return}const k=(t*1.4+b.userData.d)%1,a=b.userData.a+t*6;b.position.set(Math.cos(a)*b.userData.r*(1-k*.5),.95+k*1.1,Math.sin(a)*b.userData.r*(1-k*.5));b.material.opacity=1-t;b.scale.setScalar(1-k*.6)})}}
   }else if(kd==='micro'&&U.win){const st=microStatus(o);U.win.emissiveIntensity=st==='thaw'?.9+Math.sin(now/200)*.15:0;U.mled.emissiveIntensity=st==='ready'?(Math.sin(now/180)>0?1.8:.2):st==='thaw'?.6:0;U.plateM.rotation.y=st==='thaw'?now/800:U.plateM.rotation.y;
    const fk=o.s&&st!=='empty'?o.s.d+st:'';if(fk!==U.mfk){U.mfk=fk;while(U.mfood.children.length)U.mfood.remove(U.mfood.children[0]);if(fk){const d=dishMesh(o.s.d);d.scale.setScalar(.75);U.mfood.add(d)}}}
   else if(kd==='freezer'&&U.led){U.led.emissiveIntensity=1+Math.sin(now/700)*.2}
@@ -2113,6 +2132,7 @@ function openStoveInfo(o){
  freshSheet(()=>`<h2>${d.n}</h2><p class="sub">${ITEMS[o.t].n} · rende ${d.sv} porções</p>
   <div class="big">${fmt(left)}</div><div class="pbar"><i style="width:${(1-left/(dur/1000))*100}%"></i></div>
   <p class="sub">Quando ficar pronto você tem ${fmt(spoilMs(dur)/1000)} para levar ao balcão antes de estragar.</p>
+  ${potMenu()}
   <div class="row">${btn(`Acelerar · ${g} ${g>1?'gemas':'gema'}`,()=>{if(S.gems<g)return toast('Gemas insuficientes. Gemas vêm a cada 5 níveis, da nota máxima do crítico e do bônus de 7 dias seguidos.');S.gems-=g;o.s.t0=Date.now()-dur;closeSheet();beep(900,.1,'triangle');save()},'green wide',S.gems<g)}
   ${btn('Jogar fora',()=>confirmBox('Jogar fora?','Os ingredientes não são devolvidos.','Jogar fora',()=>{o.s=null;save()}),'alt wide')}</div>`);
 }
@@ -2125,7 +2145,7 @@ function openCounter(o){
 let shopTab='cozinha';
 function openShop(tab){
  if(tab)shopTab=tab;
- const tabs=[['cozinha','Cozinha'],['salao','Salão'],['deco','Decoração'],['piso','Piso e parede'],['colecoes','Coleções'],['seguranca','Segurança'],['ampliar','Ampliar']];
+ const tabs=[['cozinha','Cozinha'],['pocoes','Poções'],['salao','Salão'],['deco','Decoração'],['piso','Piso e parede'],['colecoes','Coleções'],['seguranca','Segurança'],['ampliar','Ampliar']];
  freshSheet(()=>{
   let body='';
   if(['cozinha','salao','deco'].includes(shopTab)){
@@ -2133,6 +2153,10 @@ function openShop(tab){
     const lock=it.lv>S.lv,poor=S.coins<it.price;
     const fn=()=>{if(lock)return toast('Disponível no nível '+it.lv);if(poor)return toast('Moedas insuficientes');closeSheet();startPlace(t)};
     return`<button class="card ${lock?'locked':''} ${poor&&!lock?'poor':''}" data-k="${acts.push(fn)-1}">${it.col?`<span class="tag col">${COLS[it.col].n}</span>`:''}<span class="art">${itemArt(t)}</span><b>${it.n}</b><span class="meta">${lock?'Nível '+it.lv:it.info}</span><span class="price">${coinI}${money(it.price)}</span></button>`}).join('')}</div>`;
+  }else if(shopTab==='pocoes'){
+   body=`<p class="sub">Ative tocando num fogão que está cozinhando ou aqui mesmo. A poção vale por um expediente: todos os fogões cozinham mais rápido até a troca de turno. Uma poção por vez.</p><div class="grid">${Object.entries(POT).map(([k,P])=>{const n=(S.pot&&S.pot[k])||0,lock=P.lv>S.lv,poor=S.coins<P.price;
+    const fn=()=>{if(lock)return toast('Disponível no nível '+P.lv);if(poor)return toast('Moedas insuficientes');S.coins-=P.price;S.pot=S.pot||{};S.pot[k]=(S.pot[k]||0)+1;beep(820,.08);beep(1100,.1,'sine',.07,.08);toast(P.n+' comprada!');save();openShop()};
+    return`<button class="card ${lock?'locked':''} ${poor&&!lock?'poor':''}" data-k="${acts.push(fn)-1}">${n?`<span class="tag">Tem ${n}</span>`:''}<span class="art">${potSVG(P.c,70)}</span><b>${P.n}</b><span class="meta">${lock?'Nível '+P.lv:`-${Math.round(P.k*100)}% no tempo dos pratos por 1 expediente`}</span><span class="price">${coinI}${money(P.price)}</span></button>`}).join('')}</div><h3 style="margin:12px 0 4px;color:var(--cocoa)">Usar agora</h3>${potMenu()}`;
   }else if(shopTab==='seguranca'){
    body=`<p class="sub">Proteja a cafeteria dos perigos da noite. Cada item é comprado uma vez só.</p><div class="grid">${Object.entries(UPG).map(([k,u])=>{const own=S.up[k],lock=u.lv>S.lv,poor=!own&&S.coins<u.price;
     const fn=()=>{if(own)return;if(lock)return toast('Disponível no nível '+u.lv);if(poor)return toast('Moedas insuficientes');S.coins-=u.price;S.up[k]=1;beep(820,.08);beep(1100,.1,'sine',.07,.08);toast(u.n+' instalado!');save();openShop()};
@@ -2269,6 +2293,7 @@ function hud(){
  {const L=missions(),nc=L.filter(m=>m.p>=m.goal&&!m.c).length,el=$('misN');if(el){el.textContent=nc;el.classList.toggle('on',nc>0)}}
  {const nt=isNight(),k=lightK();$('clkI').textContent=k>.5?'☀️':'🌙';$('clkT').textContent=clockTxt();$('shT').textContent=(nt?'Turno da noite':'Turno do dia')+(nt&&!S.nightOpen?' · fechado':'');
   const dv=S.debt.aluguel+S.debt.luz;$('billT').textContent=`Dia ${monthDay()}/30 · ${money(billTotal())}`+(dv?` · deve ${money(dv)}`:'');$('billC').classList.toggle('debt',dv>0)}
+ {const b=potOn(),el=$('potC');el.style.display=b?'':'none';if(b){$('potT').textContent='🧪 -'+Math.round(POT[b.k].k*100)+'% · '+fmt((shiftId()+1)*600+45-gT());el.style.background=POT[b.k].c}}
  {const p=decoBase(),pen=dirtPen();$('decoP').textContent=Math.round(Math.max(0,p-pen)*100)+'%'+(pen>.005?` (-${Math.round(pen*100)}%)`:'')}
  {const e=$('evb');let h='';if(ev&&ev.type==='rush'&&mode==='play')h+=`<span>Hora do rush ${Math.max(0,Math.ceil((ev.until-performance.now())/1000))}s</span>`;if(combo>=3&&performance.now()-comboLast<9000&&mode==='play')h+=`<span class="c">Combo x${combo}</span>`;e.innerHTML=h;e.classList.toggle('on',!!h)}
  {const p=decoPct();$('decoB').style.width=(p*100)+'%'}
@@ -2292,7 +2317,7 @@ function tick(now){
  const dt=Math.min(.1,(now-lastTick)/1000);lastTick=now;
  skipTick(now);{const c=canSkip();if(c!==skipW){skipW=c;if(mode==='play'&&!placing)setBar()}}
  if(mode==='play'&&!paused){
-  shiftTick(dt);billTick(dt);dangerTick(dt);microTick();
+  shiftTick(dt);billTick(dt);dangerTick(dt);microTick();potTick(dt);
   for(const d of S.dirt)d.age+=dt;
   monT-=dt;if(monT<=0){monT=5;checkMonth();if(S.debt.aluguel>0)S.buzz=Math.max(0,S.buzz-.4);if(pendingModals.length&&!scrim.classList.contains('on'))nextModal()}
   dilT-=dt;if(dilT<=0&&!scrim.classList.contains('on')){dilT=420+Math.random()*120;dilemma()}
